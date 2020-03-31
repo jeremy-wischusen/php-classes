@@ -8,7 +8,7 @@
      * Build for 2.6 version of PHP SDK.
      * This class assumes you are using user based authentication.
      * If you are using an older version of couchbase, you will need to
-     * modify the contructor to use the older bucket based password syntax.
+     * modify the constructor to use the older bucket based password syntax.
      */
     class CouchbaseDatabase {
         /**
@@ -22,11 +22,13 @@
 
         /**
          * CouchbaseDatabase constructor.
+         *
          * @param string $url Couchbase server url e.g., couchbase://localhost
          * @param string $userName Couchbase user name.
          * @param string $password Couchbase user password.
          * @param string|NULL $bucketName Name of the bucket to open if desired. Buckets can be open after construction
          *     using the openBucket method.
+         *
          * @throws Exception If url, username or password are not provided, this exception will be thrown.
          */
         public function __construct(string $url, string $userName, string $password, string $bucketName = NULL) {
@@ -52,7 +54,7 @@
          *
          * @return string
          */
-        protected static function createID() {
+        public static function createID() {
             return (string)(uniqid(mt_rand(1, 1000), FALSE));
         }
 
@@ -69,18 +71,19 @@
         /**
          * Perform a bucket get operation.
          *
-         * @param string|array $id The id(s) of the document(s) to be retrieved.
-         *
+         * @param string|array $ids The id(s) of the document(s) to be retrieved.
          * @param bool $full By default this function returns the value property of the document.
-         * If this parameter is set to true, the full document object will bre returned instead of just the value
+         * If this parameter is set to true, the full document object will be returned instead of just the value
          *     property.
          *
          * @return mixed|stdClass
+         *
+         * @throws Exception
          */
         public function get($ids, $full = FALSE) {
             try {
-                if (!is_array($id)) {
-                    $id = (string)$id;
+                if (!is_array($ids)) {
+                    $ids = (string)$ids;
                 }
                 $doc = $this->bucket->get($ids);
                 if ($full) {
@@ -106,17 +109,17 @@
                 //this is the key is not found on the server error. just return null;
                 if ($e->getCode() === 13) {
                     return NULL;
-                } else {
-                    throw $e;
                 }
+                throw $e;
             }
         }
 
         /**
          * Return the currently open bucket
-         * or opens a bucket if the name parameters is provided
-         * and returns that bucket the reference to the bucket from the internal hash map.
-         * @param string $name Name of the bucket to get. If not provided the currently open bucket will be returned.
+         * or opens a bucket if the name parameters is provided.
+         *
+         * @param string $name Name of the bucket to get.
+         * If not provided the currently open bucket will be returned.
          *
          * @return Bucket
          */
@@ -129,6 +132,38 @@
         }
 
         /**
+         * Gets a document from a replica. Assume the data is stale.
+         *
+         * @param string $id Document id
+         * @param bool $full By default this function returns the value property of the document.
+         * If this parameter is set to true, the full document object will be returned instead of just the value
+         *     property.
+         *
+         * @return mixed|stdClass
+         *
+         * @throws Exception
+         */
+        public function getFromReplica(string $id, $full = FALSE) {
+            try {
+                $doc = $this->bucket->getFromReplica($id);
+                if ($full) {
+                    return $doc;
+                }
+                if (is_string($doc->value)) {
+                    return json_decode($doc->value);
+                }
+
+                return $doc->value;
+            } catch (Exception $e) {
+                //this is the key is not found on the server error. just return null;
+                if ($e->getCode() === 13) {
+                    return NULL;
+                }
+                throw $e;
+            }
+        }
+
+        /**
          * Performs a bucket insert operation.
          *
          * @param $data object
@@ -137,6 +172,7 @@
          *     the createID function.
          *
          * @param null|array $options expiry(integer), persist_to(integer), replicate_to(integer)
+         *
          * @return mixed If the insert is successful, the id of the inserted document is returned.
          */
         public function insert($data, string $id = NULL, $options = NULL) {
@@ -144,9 +180,9 @@
                 $id = self::createID();
             }
             if (is_array($options)) {
-                $result = $this->bucket->insert($id, $data, $options);
+                $this->bucket->insert($id, $data, $options);
             } else {
-                $result = $this->bucket->insert($id, $data);
+                $this->bucket->insert($id, $data);
             }
 
             return $id;
@@ -169,7 +205,7 @@
          *
          * @return mixed
          */
-        public function query($sql, $full = FALSE) {
+        public function query(string $sql, $full = FALSE) {
             $data = $this->bucket->query(CouchbaseN1qlQuery::fromString($sql));
             if ($full) {
                 return $data;
@@ -181,9 +217,12 @@
         /**
          * Performs a bucket delete operation.
          *
+         * @param null|array $options cas(string), persist_to(integer), replicate_to(integer)
          * @param string|array $ids The id(s) of the document(s) to be deleted.
          *
          * @return mixed
+         *
+         * @throws Exception
          */
         public function remove($ids, $options = NULL) {
             try {
@@ -201,9 +240,8 @@
                 //this is the key is not found on the server error. just return null;
                 if ($e->getCode() === 13) {
                     return FALSE;
-                } else {
-                    throw $e;
                 }
+                throw $e;
             }
         }
 
@@ -212,8 +250,7 @@
          *
          * @param $data object Document data.
          * @param string $id The id of the document to be updated.
-         *
-         * @param $options array Bucket options.
+         * @param null|array $options expiry(integer), persist_to(integer), replicate_to(integer)
          *
          * @return mixed
          */
@@ -232,8 +269,7 @@
          *
          * @param $data object Document data.
          * @param string $id The id of the document to be updated.
-         *
-         * @param $options array Bucket options.
+         * @param null|array $options expiry(integer), persist_to(integer), replicate_to(integer)
          *
          * @return mixed If the upsert is successful, the id will be returned,
          * otherwise, the result of the operation is returned.
